@@ -1,0 +1,73 @@
+stages:
+  - Rebuild Services
+  - Execute Services
+
+Rebuild Light Timer:
+  stage: Rebuild Services
+  tags:
+    - waterPi
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+      changes:
+        - Dockerfiles/lightTimer/*
+      when: always
+  script:
+    - docker container stop growBot_lightTimer || echo No Container to STOP
+    - docker container rm growBot_lightTimer || echo No Container to RM
+    - docker image rm growbot_lighttimer:1.0 || echo No Image to RM
+    - cp Dependencies/growFunctions.py Dockerfiles/lightTimer/
+    - docker build -t growbot_lighttimer:1.0 Dockerfiles/lightTimer/
+
+Rebuild Water Level Sensor:
+  stage: Rebuild Services
+  tags:
+    - waterPi
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+      changes:
+        - Dockerfiles/waterLevelSensor/*
+      when: always
+  script:
+    - docker container stop growBot_waterLevelSensor || echo No Container to STOP
+    - docker container rm growBot_waterLevelSensor || echo No Container to RM
+    - docker image rm growbot_waterlevelsensor:1.0 || echo No Image to RM
+    - cp Dependencies/growFunctions.py Dockerfiles/waterLevelSensor/
+    - cp -r Dependencies/SDL_Pi_Grove4Ch16BitADC/SDL_Adafruit_ADS1x15 Dockerfiles/waterLevelSensor/
+    - ls -la Dockerfiles/waterLevelSensor
+    - ls -la Dockerfiles/waterLevelSensor/*
+    - docker build -t growbot_waterlevelsensor:1.0 Dockerfiles/waterLevelSensor/
+
+Start Light Timer:
+  stage: Execute Services
+  tags:
+    - waterPi
+  rules:
+    - when: on_success
+  dependencies:
+    - Rebuild Light Timer
+  script:
+    - docker container stop growBot_lightTimer || echo No Container to STOP
+    - docker container rm growBot_lightTimer || echo No Container to RM
+    - >
+      sudo docker run
+      --device /dev/gpiomem
+      --name growBot_lightTimer
+      growbot_lighttimer:1.0
+
+Start Water Level Sensor:
+  stage: Execute Services
+  tags:
+    - waterPi
+  rules:
+    - when: on_success
+  dependencies:
+    - Rebuild Water Level Sensor
+  script:
+    - docker container stop growBot_waterLevelSensor || echo No Container to STOP
+    - docker container rm growBot_waterLevelSensor || echo No Container to RM
+    - >
+      docker run
+      --device /dev/gpiomem
+      --device /dev/i2c-1
+      --name growBot_waterLevelSensor
+      growbot_waterlevelsensor:1.0
